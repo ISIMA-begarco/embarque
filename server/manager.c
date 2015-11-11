@@ -11,8 +11,11 @@
 
 // Ou on va lire les infos
 #define TTY "/dev/ttyAMA0"
+
+// Variables globales
+file_t* FILE_TRAME; // File des trames recues correctes
 int FD;
-FILE* FICHIER;
+FILE * FICHIER;
 
 // Ouverture du port
 int openPort(void) {
@@ -20,7 +23,7 @@ int openPort(void) {
 	int fd,i;
 	fd = open(TTY, O_RDWR);
 	if (fd==-1) {
-		printf("Erreur ouverture port !!!\n");
+		printf("### Erreur d'ouverture du port \n");
 	}
 	else {
 		fcntl(fd,F_SETFL,0);
@@ -46,6 +49,8 @@ int openPort(void) {
 		tcsetattr(fd, TCSANOW,&options); // set new configure immediately
 		//    tcflush(fd,TCIOFLUSH);
 		usleep(10000);
+		
+		printf("### Port ouvert\n");
 	}
 
 	return fd;	
@@ -53,48 +58,45 @@ int openPort(void) {
 
 // Fonction de lecture de trame
 int threadLecture() {
-printf("oui");
+printf("1\n");
 	int i = 0, ok = 0;
 	char c;
 	char* trame = (char*)malloc(21 * sizeof(char));
-printf("dring dring");
-	file_t* file = create_file(); // File des trames recues correctes
-printf("allo");	
+printf("2\n");
 	while(1) {
-		//usleep(1); // Pour la synchro
+		usleep(100); // Pour la synchro
 		// TODO attendre son tour pour aller lire
-printf("w principal");
-		do {printf("w ");
-			read(FD, &c, 1); // Lecture du caractere
-			if(ok==1 || c=='X') {
-				ok = 1;
-				trame[i] = c;
-				i++; // va chercher les autres
-			}
-		} while(i < 20 && c!='W');
-printf("je sors du premier while");
+
+		ok = 0;
+		i = 0;
+		while(i < 20 && c!='W') {
+//printf("3"); // Ca s'affiche
+			if(read(FD, &c, 1) >= 1) { // Lecture du caractere
+				if(ok==1 || c=='X') { // Debut de trame ou le reste
+					ok = 1;
+					trame[i] = c;
+					i++;
+				} // if
+			} // if read
+		} // while
+		
+printf("Trame recue : %s\n", trame); // affichage de test
+
 		// Verification et mise dans file de la trame
 		if(i == 20) { // taille correcte
 			if(trame[19] == 'W') { // fin correcte
 				if(trame[0]=='X' && trame[1]=='0' && trame[2]=='1') { // bon code, donc bonne trame
 					trame[20] = '\0'; // Ajout du caractere de fin
-printf("J'attends le mutex");
-					while(pthread_mutex_lock(&(file->mutex)) != 0) { // Je bloque la file
-						push_file(file, trame); // Ajout de la trame dans la file, pour le thread acquitement
-						pthread_mutex_unlock(&(file->mutex)); // Je debloque la file
-printf("Trame push : %s\n", trame); // affichage de test
-					}
-				}
-			}
-		}
-		
-		// RAZ des valeurs pour le reste
-		ok = 0;
-		i = 0;
-	}
+					while(pthread_mutex_lock( &(FILE_TRAME->mutex) ) != 0) {} // On a attend de bloquer la file
+						push_file(FILE_TRAME, trame); // Ajout de la trame dans la file
+						pthread_mutex_unlock( &(FILE_TRAME->mutex) ); // Debloque la file
+				} // if code
+			} // if fin
+		} // if taille
+	} // while(1)
 	
 	// Desallocation de memoire
-	delete_file(file);
+	delete_file(FILE_TRAME);
 	free(trame);
 	
 	return 0;
@@ -102,9 +104,10 @@ printf("Trame push : %s\n", trame); // affichage de test
 
 // Fonction principale
 int main(int argc, char ** argv) {
-	FD = openPort(); // Ouverture du port et place dans la variable globale
+	FD = openPort(); // Ouverture du port en global
+	FILE_TRAME = create_file();
 	FICHIER = fopen("valeurs.txt", "rw");
-
+	
 	threadLecture();
 
   return 0;
