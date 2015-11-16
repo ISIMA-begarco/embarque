@@ -23,8 +23,7 @@ file_t* FILE_TRAME; // File des trames recues correctes
 file_t* FILE_CMD; // File des commandes venant
 int FD;
 FILE * FICHIER;
-bool_t* BOOL_ACK; // Pour savoir si j'ai bien envoye la commande serveur
-bool_t* BOOL_RUN; // Pour savoir s'il faut continuer les threads
+bool_t* BOOL; // Pour savoir si j'ai bien envoye la commande serveur
 
 bool_t * create_bool() {
 	bool_t * retour = (bool_t*)malloc(sizeof(bool_t));
@@ -74,11 +73,12 @@ int openPort(void) {
 
 // Fonction de lecture de trame
 int threadLecture() {
+printf("1\n");
 	int i = 0, ok = 0;
 	char c;
 	char* trame = (char*)malloc(21 * sizeof(char));
-
-	while(1) { // TODO aller lire le BOOL_RUN
+printf("2\n");
+	while(1) {
 		usleep(100); // Pour la synchro
 		// TODO attendre son tour pour aller lire
 
@@ -109,9 +109,9 @@ printf("Trame recue : %s\n", trame); // affichage de test
 		} else if (i == 7) { // trame acquitement
 			if(trame[6] == 'W') { // fin correcte
 				if(trame[0] == 'Y' && trame[1] == '0' && trame[2] == '0') { // bon code de trame
-					while(pthread_mutex_lock( &(BOOL_ACK->mutex) ) != 0) {} // On attend de bloquer le booleen
-					BOOL_ACK->b = 1; // indique qu'on a recu un ACK
-					pthread_mutex_unlock( &(BOOL_ACK->mutex) ); // Debloque le booleen
+					while(pthread_mutex_lock( &(BOOL->mutex) ) != 0) {} // On attend de bloquer le booleen
+					BOOL->b = 1; // indique qu'on a recu un ACK
+					pthread_mutex_unlock( &(BOOL->mutex) ); // Debloque le booleen
 				} // if
 			} // if
 		} // if verif
@@ -126,8 +126,6 @@ printf("Trame recue : %s\n", trame); // affichage de test
 
 // Ecriture dans le fichier et envoi des acquitements
 void threadEcriture() {
-	// TODO gerer le BOOL_RUN
-
 	// TODO gestion du mutex de file et envoi des acquitements
 	// TODO get les commandes du serveur
 	// TODO gestion des trames : ecriture temperature et heure dans fichier qui sera lu en js
@@ -141,15 +139,12 @@ void threadEcriture() {
 
 // Fonction principale
 int main(int argc, char ** argv) {
-	// Initialisations des variables globales
 	FD = openPort(); // Ouverture du port en global
 	FILE_TRAME = create_file();
 	FILE_CMD = create_file();
 	FICHIER = fopen("valeurs.txt", "rw");
-	BOOL_ACK = create_bool();
-	BOOL_RUN = create_bool(); BOOL_RUN->b = 1;
+	BOOL = create_bool();
 	
-	// Lancement des threads
 	threadLecture();
 
   return 0;
