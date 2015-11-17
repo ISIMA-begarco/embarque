@@ -9,14 +9,15 @@
 
 #include "file.h"
 
+// Ou on va lire les infos
+#define TTY "/dev/ttyAMA0"
+#define FICHIER_VALEURS "valeurs.txt"
+
 // Structure pour les acquitements
 typedef struct bool {
 	unsigned char b;
 	pthread_mutex_t mutex;
 } bool_t;
-
-// Ou on va lire les infos
-#define TTY "/dev/ttyAMA0"
 
 // Variables globales
 file_t* FILE_TRAME; // File des trames recues correctes
@@ -24,7 +25,7 @@ file_t* FILE_CMD; // File des commandes venant
 int FD;
 FILE * FICHIER;
 bool_t* BOOL_ACK; // Pour savoir si j'ai bien envoye la commande serveur
-bool_t* BOOL_RUN; // Pour savoir s'il faut continuer les threads
+unsigned char BOOL_RUN; // Pour savoir s'il faut continuer les threads
 
 bool_t * create_bool() {
 	bool_t * retour = (bool_t*)malloc(sizeof(bool_t));
@@ -78,7 +79,7 @@ int threadLecture() {
 	char c;
 	char* trame = (char*)malloc(21 * sizeof(char));
 
-	while(1) { // TODO aller lire le BOOL_RUN
+	while(BOOL_RUN == 1) { // TODO modifier dans le prog pour stopper
 		usleep(100); // Pour la synchro
 		// TODO attendre son tour pour aller lire
 
@@ -96,7 +97,7 @@ int threadLecture() {
 		
 printf("Trame recue : %s\n", trame); // affichage de test
 
-		// Verification et mise dans file de la trame
+		/// Verification et mise en file
 		if(i == 20) { // trame de temperature
 			if(trame[19] == 'W') { // fin correcte
 				if(trame[0]=='X' && trame[1]=='0' && trame[2]=='1') { // bon code, donc bonne trame
@@ -118,14 +119,17 @@ printf("Trame recue : %s\n", trame); // affichage de test
 	} // while(1)
 	
 	// Desallocation de memoire
-	delete_file(FILE_TRAME);
 	free(trame);
 	
 	return 0;
 }
 
 // Ecriture dans le fichier et envoi des acquitements
-void threadEcriture() {
+int threadEcriture() {
+    int essai, i;
+    char c;
+    char* trame;
+
 	// TODO gerer le BOOL_RUN
 
 	// TODO gestion du mutex de file et envoi des acquitements
@@ -133,10 +137,42 @@ void threadEcriture() {
 	// TODO gestion des trames : ecriture temperature et heure dans fichier qui sera lu en js
 	// TODO gesytion du mutex du booleen
 
-	while(1) {
+	while(BOOL_RUN == 1) {
+	    // Envoi des trames de commandes
+	    if(FILE_CMD->size > 0) { // On doit envoyer une commande
+    	    while( pthread_mutex_lock( &(FILE_CMD->mutex) ) != 0) {}
+    	    trame = top_file(FILE_CMD); // Recupere la trame
+	        
+	        essai = 0;
+	        while(BOOL_ACK->b != 1 && essai < 3) { // Pas encore l'ACK
+	            for (i = 0; i < count; i += 1) { // TODO write la commande
+	                
+	            }
+printf("Envoie trame cmd, essai %d\n", essai);
+	            essai++;
+	            usleeep(100); // Sert de timeout TODO peut etre enlever
+	        } // while ACK
+	        free(trame);
+	        pop_file(FILE_TRAME); // Enleve la trame pour aller a la suivante
+	        pthread_mutex_unlock( &(FILE_CMD->mutex) );
+	        
+	    } // if cmd > 0
+	    
+        //Ecriture trames dans le fichier
+        while( pthread_mutex_lock( &(FILE_TRAME->mutex) ) != 0) {}
+	    if(FILE_TRAME->size > 0) { // On a des trames
+	        // TODO ecrire trame dans fichier, te.mp;hh:mm
+	        
+	        
+	    } // if trame > 0
+	    pthread_mutex_unlock( &(FILE_TRAME->mutex) );
 		
 	} // while true
-
+    
+    // Liberation memoire
+    free(trame);
+    
+    return 0;
 }
 
 // Fonction principale
@@ -145,12 +181,19 @@ int main(int argc, char ** argv) {
 	FD = openPort(); // Ouverture du port en global
 	FILE_TRAME = create_file();
 	FILE_CMD = create_file();
-	FICHIER = fopen("valeurs.txt", "rw");
+	FICHIER = fopen(FICHIER_VALEURS, "w");
 	BOOL_ACK = create_bool();
-	BOOL_RUN = create_bool(); BOOL_RUN->b = 1;
-	
+    BOOL_RUN = 1;
+
+	// TODO lancer des threads, TODO gerer l'arret du capteur
 	// Lancement des threads
 	threadLecture();
+	threadEcriture();
+	
+	// Liberation memoire
+	delete_file(FILE_TRAME);
+	delete_file(FILE_CMD);
+	fclose(FICHIER);
 
   return 0;
 }
