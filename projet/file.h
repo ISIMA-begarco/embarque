@@ -25,4 +25,4 @@ char * top_file(file_t *);
 void pop_file(file_t *);
 void delete_file(file_t *);
 
-#endif // FILE_H
+#endif

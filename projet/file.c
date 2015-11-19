@@ -5,7 +5,7 @@ file_t * create_file() {
 	retour->first = NULL;
 	retour->last = NULL;
 	retour->size = 0;
-	pthread_mutex_init(&retour->mutex, NULL);
+	pthread_mutex_init(&(retour->mutex), NULL);
 	return retour;
 }
 
