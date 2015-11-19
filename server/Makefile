@@ -17,7 +17,7 @@ EXEC = prog
 #Options de compilation
 CXXFLAGS = -Wall -W -Wextra -g
 #Options pour les librairies
-LDFLAGS =
+LDFLAGS = -lpthread
 
 #Repertoire des fichiers objet
 OBJDIR = .
