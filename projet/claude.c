@@ -138,8 +138,10 @@ void *threadEnvoi(void * param) {
                         }
                         BOOL_ACK_RECEPTION->b = 0;
                         pthread_mutex_unlock(&(BOOL_ACK_RECEPTION->mutex));
+                        printf("Succes : Acquittement recu.\n");
                     }
                     if(!nbEssais) {
+                    	printf("Abandon : aucun acquittement.\n");
                         pop_file(GL_trames);
                     }
 				}
@@ -153,8 +155,60 @@ void *threadEnvoi(void * param) {
 
 // Thread de lecture de trames
 void *threadReception(void * param) {
-	printf("Ouverture du thread de reception ...\n");
+	int i = 0, ok = 0;
+	char c = 0;
+	char* trame = (char*)malloc(21 * sizeof(char));
 
+	while(BOOL_RUN->b == 1) { // TODO modifier dans le prog pour stopper
+		//usleep(100); // Pour la synchro
+		// TODO attendre son tour pour aller lire
+
+		// Lecture trame
+		ok = 0;
+		i = 0;
+		c = 0;
+		while(i < 20 && c!='W') { // la taille max est de 20
+			if(read(fd, &c, 1) >= 1) { // Lecture du caractere
+				if(ok==1 || c=='X' || c=='Y') { // debut trame TEMP ou ACK
+					ok = 1;
+					trame[i] = c;
+					i++;
+				} // if
+			} // if read
+		} // while
+
+		/// Verification et mise en file
+		if(i == 20) { // trame de temperature
+			if(trame[19] == 'W') { // fin correcte
+				if(trame[0]=='X' && trame[1]=='0' && trame[2]=='1') { // bon code, donc bonne trame
+printf("Trame recue : %s\n", trame); // affichage de test
+					trame[20] = '\0'; // Ajout du caractere de fin
+					while(pthread_mutex_lock( &(GL_recues->mutex) ) != 0) {usleep(1);} // On a attend de bloquer la file
+					push_file(GL_recues, trame); // Ajout de la trame dans la file
+					pthread_mutex_unlock( &(GL_recues->mutex) ); // Debloque la file
+printf("*** Trame ajoutee dans la file (%d) \n", GL_recues->size);
+					
+					// Dit qu'il faut envoyer un ACK
+					while( pthread_mutex_lock( &(BOOL_ACK_ENVOI->mutex) ) != 0 ) {usleep(1);}
+					BOOL_ACK_ENVOI->b = 1;
+					pthread_mutex_unlock( &(BOOL_ACK_ENVOI->mutex) );
+
+				} // if code
+			} // if fin
+		} else if (i == 7) { // trame acquitement
+			if(trame[6] == 'W') { // fin correcte
+				if(trame[0] == 'Y' && trame[1] == '0' && trame[2] == '0') { // bon code de trame
+					while(pthread_mutex_lock( &(BOOL_ACK_RECEPTION->mutex) ) != 0) {usleep(1);} // On attend de bloquer le booleen
+					BOOL_ACK_RECEPTION->b = 1; // indique qu'on a recu un ACK
+					pthread_mutex_unlock( &(BOOL_ACK_RECEPTION->mutex) ); // Debloque le booleen
+				} // if
+			} // if
+		} // if verif
+	} // while(1)
+	
+	// Desallocation de memoire
+	free(trame);
+	
 	return 0;
 }
 
@@ -229,7 +283,7 @@ int main(int argc, char* argv[]) {
 
     // traitement des donnees recues
 	while(BOOL_RUN->b) {
-	/*
+	
 		while(pthread_mutex_lock(&(GL_recues->mutex))) {	// on attend l'acces a la zone partagee
             usleep(1);
         }
@@ -255,7 +309,7 @@ int main(int argc, char* argv[]) {
             pop_file(GL_recues);
         }
         pthread_mutex_unlock(&(GL_recues->mutex));
-        */usleep(1);
+        usleep(1);
 	}
     printf("Arret en cours ....\n");
     // arret des threads
