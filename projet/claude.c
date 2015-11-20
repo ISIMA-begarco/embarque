@@ -10,7 +10,6 @@
  *                                                               *
  *****************************************************************/
 
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -19,6 +18,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <termios.h>
+#include <pthread.h>
 
 #include "file.h"
 
@@ -83,9 +83,11 @@ int openPort(void) {
 }
 
 // Thread d'ecriture de trames
-void *threadEnvoi(void *) {
+void *threadEnvoi(void * param) {
 	int i, nbEssais, msgEnvoye;
 	char * trame;
+	
+	printf("Ouverture du thread d'envoi ...\n");
 
   	while(BOOL_RUN->b) {
 
@@ -149,6 +151,13 @@ void *threadEnvoi(void *) {
 	return 0;
 }
 
+// Thread de lecture de trames
+void *threadReception(void * param) {
+	printf("Ouverture du thread de reception ...\n");
+
+	return 0;
+}
+
 // renvoie une temperature pour la trame a envoyer
 float genereTemperature(int min, int max) {
 	return (float)((rand()/(float)RAND_MAX) * (max-min) + min);
@@ -156,29 +165,36 @@ float genereTemperature(int min, int max) {
 
 // Creation des trames de température
 char* trameTemperature() {	/* TODO Desallouer la trame apres envoi */
-	char* trame = (char*)malloc(20 * sizeof(char));
+	char* trame_locale = (char*)malloc(21 * sizeof(char));
 	float temperature = genereTemperature(-20, 40);
 	int deb = (int) temperature, fin = abs((int) (temperature *100) % 100);
 	time_t rawtime;
 	struct tm * temps;
 	time(&rawtime);
 	temps = localtime(&rawtime);
-	sprintf(trame, "X01%+03d.%02d%02d%02d%02d%02d%02dW", deb, fin, temps->tm_hour, temps->tm_min, temps->tm_mday, temps->tm_mon+1, temps->tm_year%100);
-	return trame;
+	snprintf(trame_locale, 21, "X01%+03d.%02d%02d%02d%02d%02d%02dW", deb, fin, temps->tm_hour, temps->tm_min, temps->tm_mday, temps->tm_mon+1, temps->tm_year%100);
+	return trame_locale;
 }
 
 // thread de capture de la temperature
-void* threadThermometre(void *) {
+void* threadThermometre(void * param) {
+	char* trame;
+	printf("Ouverture du thread d'envoi ...\n");
+
     while(BOOL_RUN->b) {
         while(pthread_mutex_lock(&(GL_trames->mutex))) {	// on attend l'acces a la zone partagee
             usleep(1);
         }
-		char* trame = trameTemperature();
+        
+		trame = trameTemperature();
 		push_file(GL_trames, trame);
 		free(trame);
+		
         pthread_mutex_unlock(&(GL_trames->mutex));
 		sleep(FREQ);
 	}
+
+	return 0;
 }
 
 
@@ -213,10 +229,11 @@ int main(int argc, char* argv[]) {
 
     // traitement des donnees recues
 	while(BOOL_RUN->b) {
+	/*
 		while(pthread_mutex_lock(&(GL_recues->mutex))) {	// on attend l'acces a la zone partagee
             usleep(1);
         }
-        if(GL_recues->size) {
+        if(GL_recues->size>0) {
             char * ordre = top_file(GL_recues);
             if(ordre[0]=='Z'&&ordre[1]=='0'&&ordre[2]=='2') {   // chgt de frequence
                 int j = 0;
@@ -232,13 +249,13 @@ int main(int argc, char* argv[]) {
                 }
                 BOOL_RUN->b = 0;
                 pthread_mutex_unlock(&(BOOL_RUN->mutex));
-                printf("Arret demande ...\n")
+                printf("Arret demande ...\n");
             }
             free(ordre);
             pop_file(GL_recues);
-            pthread_mutex_unlock(&(GL_recues->mutex));
-            usleep(1);
         }
+        pthread_mutex_unlock(&(GL_recues->mutex));
+        */usleep(1);
 	}
     printf("Arret en cours ....\n");
     // arret des threads
