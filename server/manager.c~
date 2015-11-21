@@ -48,7 +48,7 @@ int openPort(void) {
 	}
 	else {
 		fcntl(fd,F_SETFL,0);
-		//    fcntl(fd, F_SETFL, FNDELAY); //ne pas bloquer sur le read
+		    fcntl(fd, F_SETFL, FNDELAY); //ne pas bloquer sur le read
 		tcgetattr(fd,&options);
 		usleep(10000);
 		cfsetospeed(&options,B115200);
@@ -131,7 +131,10 @@ printf("*** Trame ajoutee dans la file (%d) \n", FILE_TRAME->size);
 	} // while(1)
 	
 	// Desallocation de memoire
-	free(trame);
+	if(trame)
+    	free(trame);
+	
+printf("!!! Thread de lecture termine\n");
 	
 	return 0;
 }
@@ -204,8 +207,12 @@ printf("*** Trame %s dans le fichier et sortie\n", trame);
 	} // while true
     
     // Liberation memoire
-    free(trame);
-	free(cmd);
+    if(trame)
+        free(trame);
+    if(cmd)
+    	free(cmd);
+    
+printf("!!! Thread d'ecriture termine\n");
     
     return 0;
 }
@@ -240,7 +247,7 @@ printf("### Thread de lecture des commandes lance\n");
 			    push_file(FILE_CMD, cmd); // Ajout de la cmd dans la file
 			    pthread_mutex_unlock( &(FILE_CMD->mutex) );
 			    
-			    system(clrcmd);
+			    system(clrcmd); // Vide le fichier
 			    fseek(FICHIER_C, 0, SEEK_SET); // Relis a partir du debut du fichier
 			} // if bonne trame
 	    } // if recu
@@ -248,13 +255,16 @@ printf("### Thread de lecture des commandes lance\n");
 	} // while true
     
     // Liberation memoire
-    free(cmd);
+    if(cmd)
+        free(cmd);
     
+printf("!!! Thread de lecture des commandes termine\n");
     return 0;
 }
 
 // Fonction principale
 int main() {
+    unsigned short int idle = 0;
 	// Initialisations des variables globales
 	FD              = openPort(); // Ouverture du port en global
 	FILE_TRAME      = create_file();
@@ -287,13 +297,23 @@ int main() {
 	pthread_create(&commande, NULL, threadCommande, NULL);
 	
 	while(BOOL_RUN == 1) {
-	    usleep(0);
+	    if(FILE_TRAME->size == 0) {
+	        idle++;
+	        sleep(1);
+	    } else {
+	        idle = 0;
+	    }
+	    
+	    if(idle > 1) { // TODO intervalle max entre 2 trames
+	        BOOL_RUN = 0;
+	        
+        	printf("\n!!! Arret du programme \n");
+        	pthread_join(lecture, NULL);
+        	pthread_join(ecriture, NULL);
+        	pthread_join(commande, NULL);
+        	
+	    }
 	}
-	
-	printf("!!! Arret du programme \n\n");
-	pthread_join(lecture, NULL);
-	pthread_join(ecriture, NULL);
-	pthread_join(commande, NULL);
 	
 	// Liberation memoire
 	free(BOOL_ACK);
