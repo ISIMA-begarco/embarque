@@ -12,6 +12,7 @@
 // Ou on va lire les infos
 #define TTY "/dev/ttyAMA0"
 #define FICHIER_VALEURS "valeurs.txt"
+#define FICHIER_COMMANDES "cmd.txt"
 
 // Structure pour les acquitements
 typedef struct bool {
@@ -20,14 +21,15 @@ typedef struct bool {
 } bool_t;
 
 // Variables globales
-file_t* FILE_TRAME; // File des trames recues correctes
-file_t* FILE_CMD; // File des commandes venant
-int FD;
-FILE * FICHIER;
-bool_t* BOOL_ACK; // Pour savoir si j'ai bien envoye la commande serveur
-bool_t* BOOL_SEND_ACK; // Pour dire si je dois envoyer des ACK de trame ou pas
-unsigned char BOOL_RUN; // Pour savoir s'il faut continuer les threads
-char* ACK_STR; // Trame d'acquitement
+file_t*         FILE_TRAME; // File des trames recues correctes
+file_t*         FILE_CMD; // File des commandes venant
+int             FD;
+FILE *          FICHIER_T; // Fichier ou on ecrit les trames recues
+FILE *          FICHIER_C; // Fichier de recuperation des commandes
+bool_t*         BOOL_ACK; // Pour savoir si j'ai bien envoye la commande serveur
+bool_t*         BOOL_SEND_ACK; // Pour dire si je dois envoyer des ACK de trame ou pas
+unsigned char   BOOL_RUN; // Pour savoir s'il faut continuer les threads
+char*           ACK_STR; // Trame d'acquitement
 
 bool_t * create_bool() {
 	bool_t * retour = (bool_t*)malloc(sizeof(bool_t));
@@ -42,7 +44,7 @@ int openPort(void) {
 	int fd;
 	fd = open(TTY, O_RDWR);
 	if (fd==-1) {
-		printf("### Erreur d'ouverture du port \n");
+		printf("!!! Erreur d'ouverture du port \n");
 	}
 	else {
 		fcntl(fd,F_SETFL,0);
@@ -77,13 +79,13 @@ int openPort(void) {
 
 // Fonction de lecture de trame
 int threadLecture() {
+printf("### Thread de lecture lance\n");
 	int i = 0, ok = 0;
 	char c = 0;
 	char* trame = (char*)malloc(21 * sizeof(char));
 
 	while(BOOL_RUN == 1) { // TODO modifier dans le prog pour stopper
 		//usleep(100); // Pour la synchro
-		// TODO attendre son tour pour aller lire
 
 		// Lecture trame
 		ok = 0;
@@ -136,7 +138,8 @@ printf("*** Trame ajoutee dans la file (%d) \n", FILE_TRAME->size);
 
 // Ecriture dans le fichier et envoi des acquitements
 int threadEcriture() {
-    int essai, i;
+printf("### Thread d'ecriture lance\n");
+    unsigned int essai, i;
     char *trame, *cmd;
 
 	// TODO gerer le BOOL_RUN
@@ -150,7 +153,13 @@ int threadEcriture() {
 		// Envoi des ACK pour les trames de temp
 		if(BOOL_SEND_ACK-> b == 1) { // Je dois envoyer un ACK
 			while( pthread_mutex_lock( &(BOOL_SEND_ACK->mutex) ) != 0) {usleep(1);}
-			// TODO envoyer l'ACK
+			
+			for(i = 0 ; i < strlen(ACK_STR) ; i++) {
+				write(FD, &(ACK_STR[i]),1);
+				usleep(0);
+			}
+			tcflush(FD,TCIOFLUSH);
+			
 			BOOL_SEND_ACK->b = 0; // Je ne dois pas en envoyer d'autre pour le moment
 printf("*** ACK envoye\n");
 			pthread_mutex_unlock( &(BOOL_SEND_ACK->mutex) );
@@ -162,13 +171,13 @@ printf("*** ACK envoye\n");
     	    cmd = top_file(FILE_CMD); // Recupere la trame
 	        essai = 0;
 	        while(BOOL_ACK->b != 1 && essai < 3) { // Pas encore l'ACK
-				i = 0;
-	            while(cmd[i] != 'W' && i<10) { // TODO write la commande
-	                write(FD, &cmd[i], 1); // Ecrit dans pour le pc
-					i++;
-	            }
+				for(i = 0; i < strlen(cmd); i++) { // TODO si strlen marche pas
+				    write(FD, &(cmd[i]), 1);
+				    usleep(0);
+				}
+				tcflush(FD,TCIOFLUSH);
+                essai++;
 printf("Envoi trame cmd, essai %d\n", essai);
-	            essai++;
 	            usleep(100); // Sert de timeout TODO peut etre enleve
 	        } // while ACK
 	        pop_file(FILE_CMD); // Enleve la trame pour aller a la suivante
@@ -180,11 +189,20 @@ printf("Envoi trame cmd, essai %d\n", essai);
 	    if(FILE_TRAME->size > 0) { // On a des trames
         	while( pthread_mutex_lock( &(FILE_TRAME->mutex) ) != 0) {usleep(1);}
 			trame = top_file(FILE_TRAME); // Recup la trame
-			// TODO ecrire la trame dans le fichier
 			
-			pop_file(FILE_TRAME); // Sort de la file
-printf("*** Trame %s dans le fichier et sortie\n", trame);
+			// Ecrit dans le fichier char par char
+			// [+/-][temp][.temp];[HHMM];[JJMMAA]\0
+			for(i = 3; i < 19; i++) {
+			    if(i == 9 || i == 13) { // separeteur
+			        fputc(';', FICHIER_T);
+			    }
+			    fputc(trame[i], FICHIER_T);
+			}
+            fseek(FICHIER_T, 0, SEEK_SET); // Se raplace au debut pour réécrire par dessus
+			
+			pop_file(FILE_TRAME); // Sort la trame de la file
 	    	pthread_mutex_unlock( &(FILE_TRAME->mutex) );
+printf("*** Trame %s dans le fichier et sortie\n", trame);
 			free(trame); // libere la trame pour avoir les suivantes
 	    } // if trame > 0
 
@@ -197,33 +215,66 @@ printf("*** Trame %s dans le fichier et sortie\n", trame);
     return 0;
 }
 
+// Lis le fichier contenant les commandes et les place dans la file
+int threadCommande() {
+printf("### Thread de lecture des commandes lance\n");
+
+	while(BOOL_RUN == 1) {
+		
+	} // while true
+    
+    return 0;
+}
+
 // Fonction principale
 int main() {
 	// Initialisations des variables globales
-	FD = openPort(); // Ouverture du port en global
-	FILE_TRAME = create_file();
-	FILE_CMD = create_file();
-	FICHIER = fopen(FICHIER_VALEURS, "w");
-	BOOL_ACK = create_bool();
-	BOOL_SEND_ACK = create_bool();
-    BOOL_RUN = 1;
-	ACK_STR = "Y00ACKW";
+	FD              = openPort(); // Ouverture du port en global
+	FILE_TRAME      = create_file();
+	FILE_CMD        = create_file();
+	FICHIER_T       = fopen(FICHIER_VALEURS, "w");
+	FICHIER_C       = fopen(FICHIER_COMMANDES, "r");
+	BOOL_ACK        = create_bool();
+	BOOL_SEND_ACK   = create_bool();
+    BOOL_RUN        = 1;
+	ACK_STR         = "Y00ACKW";
+	
+	if(FICHIER_T != NULL) {
+	    printf("### Fichier de valeurs ouvert\n");
+	} else {
+	    printf("!!! Fichier de valeurs introuvable\n");
+	}
+	
+	if(FICHIER_C != NULL) {
+	    printf("### Fichier de commandes ouvert\n");
+	} else {
+	    printf("!!! Fichier de commandes introuvable\n");
+	}
 
 	// Initialisation des threads
-	pthread_t lecture, ecriture;
-
+	pthread_t lecture, ecriture, commande;
+	
+    //Lancement des threads
 	pthread_create(&lecture, NULL, threadLecture, NULL);
 	pthread_create(&ecriture, NULL, threadEcriture, NULL);
-
-	// TODO lancer des threads, TODO gerer l'arret du capteur
-	// Lancement des threads
-	threadLecture();
-	///threadEcriture();
+	//pthread_create(&commande, NULL, threadCommande, NULL);
+	
+	while(BOOL_RUN == 1) {
+	    usleep(0);
+	}
+	
+	printf("!!! Arret du programme \n\n");
+	pthread_join(lecture, NULL);
+	pthread_join(ecriture, NULL);
+	pthread_join(commande, NULL);
 	
 	// Liberation memoire
+	free(BOOL_ACK);
+	free(BOOL_SEND_ACK);
 	delete_file(FILE_TRAME);
 	delete_file(FILE_CMD);
-	fclose(FICHIER);
+	fclose(FICHIER_T);
+	fclose(FICHIER_C);
 
   return 0;
 }
