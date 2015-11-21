@@ -144,11 +144,6 @@ printf("### Thread d'ecriture lance\n");
 
 	// TODO gerer le BOOL_RUN
 
-	// TODO gestion du mutex de file et envoi des acquitements
-	// TODO get les commandes du serveur
-	// TODO gestion des trames : ecriture temperature et heure dans fichier qui sera lu en js
-	// TODO gesytion du mutex du booleen
-
 	while(BOOL_RUN == 1) {
 		// Envoi des ACK pour les trames de temp
 		if(BOOL_SEND_ACK-> b == 1) { // Je dois envoyer un ACK
@@ -198,7 +193,7 @@ printf("Envoi trame cmd, essai %d\n", essai);
 			    }
 			    fputc(trame[i], FICHIER_T);
 			}
-            fseek(FICHIER_T, 0, SEEK_SET); // Se raplace au debut pour réécrire par dessus
+            fseek(FICHIER_T, 0, SEEK_SET); // Se replace au debut pour reecrire par dessus la prochaine fois
 			
 			pop_file(FILE_TRAME); // Sort la trame de la file
 	    	pthread_mutex_unlock( &(FILE_TRAME->mutex) );
@@ -218,10 +213,42 @@ printf("*** Trame %s dans le fichier et sortie\n", trame);
 // Lis le fichier contenant les commandes et les place dans la file
 int threadCommande() {
 printf("### Thread de lecture des commandes lance\n");
-
+    char clrcmd[16];
+    unsigned int taille = 0;
+    char* cmd;
+    
+    strcpy(clrcmd, "> "); // Debut de la commande
+    strcat(clrcmd, FICHIER_COMMANDES); // Commande unix pour vider un fichier
+    
 	while(BOOL_RUN == 1) {
-		
+	    usleep(1000); // TODO on peut changer cette valeur
+	    
+	    if( (fgets(cmd, 11, FICHIER_C)) != NULL ) { // On a lu un truc
+	        taille = strlen(cmd);
+	        if( (taille == 11 
+	            && cmd [0] == 'Z' 
+	            && cmd[1] == '0'
+	            && cmd[2] == '2'
+	            && cmd[9] == 'W')
+	            || (taille == 9
+	            && cmd [0] == 'Q' 
+	            && cmd[1] == '0'
+	            && cmd[2] == '3'
+	            && cmd[7] == 'W') ) {
+	        	        
+			    while(pthread_mutex_lock( &(FILE_CMD->mutex) ) != 0) {usleep(1);}
+			    push_file(FILE_CMD, cmd); // Ajout de la cmd dans la file
+			    pthread_mutex_unlock( &(FILE_CMD->mutex) );
+			    
+			    system(clrcmd); // Vide le fichier
+			    fseek(FICHIER_C, 0, SEEK_SET); // Relis a partir du debut du fichier
+			} // if bonne trame
+	    } // if recu
+	    
 	} // while true
+    
+    // Liberation memoire
+    free(cmd);
     
     return 0;
 }
@@ -233,7 +260,7 @@ int main() {
 	FILE_TRAME      = create_file();
 	FILE_CMD        = create_file();
 	FICHIER_T       = fopen(FICHIER_VALEURS, "w");
-	FICHIER_C       = fopen(FICHIER_COMMANDES, "r");
+	FICHIER_C       = fopen(FICHIER_COMMANDES, "rw");
 	BOOL_ACK        = create_bool();
 	BOOL_SEND_ACK   = create_bool();
     BOOL_RUN        = 1;
@@ -257,7 +284,7 @@ int main() {
     //Lancement des threads
 	pthread_create(&lecture, NULL, threadLecture, NULL);
 	pthread_create(&ecriture, NULL, threadEcriture, NULL);
-	//pthread_create(&commande, NULL, threadCommande, NULL);
+	pthread_create(&commande, NULL, threadCommande, NULL);
 	
 	while(BOOL_RUN == 1) {
 	    usleep(0);
