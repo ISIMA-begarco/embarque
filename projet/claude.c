@@ -47,6 +47,7 @@ bool_t * BOOL_ACK_RECEPTION;
 bool_t * BOOL_ACK_ENVOI;
 bool_t * BOOL_RUN;
 int FREQ;
+float prevTemp = 0;
 char ACK_STR[] = "Y00ACKW";
 
 // Ouverture du port pour communication RS232
@@ -214,7 +215,9 @@ printf("*** Trame ajoutee dans la file (%d) \n", GL_recues->size);
 
 // renvoie une temperature pour la trame a envoyer
 float genereTemperature(int min, int max) {
-	return (float)((rand()/(float)RAND_MAX) * (max-min) + min);
+	prevTemp = prevTemp + (rand()/(float)RAND_MAX) * 5 - 2.5;
+	prevTemp = (prevTemp > 40) ? 40 : (prevTemp<-20) ? -20 : prevTemp;
+	return prevTemp;
 }
 
 // Creation des trames de température
