@@ -1,0 +1,20 @@
+function chgfreq() {
+	var freq = document.getElementById('slider').value;
+	if(typeof freq == 'undefined') {
+		var xhr = new XMLHttpRequest();
+        xhr.open('GET', "getFrequence.php");
+        xhr.addEventListener('readystatechange', function() {
+        	if (xhr.readyState === 4 && (xhr.status === 200 || xhr.status === 0)) {
+				document.getElementById('btn_freq').href = "setFrequence.php?freq="+xhr.responseText;
+	        }
+	        alert(xhr.response.Text);
+        }, false);
+        xhr.send(null); // La requête est prête, on envoie tout !               
+	} else {
+		document.getElementById('btn_freq').href = "setFrequence.php?freq="+freq;
+	}
+}
+
+function loadFile(file) {
+     
+}
