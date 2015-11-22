@@ -20,6 +20,8 @@
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Formulaire CSS -->
     <link href="css/bootstrap-formhelpers.min.css" rel="stylesheet">
+    <!-- Bootstrap AdminLTE CSS -->
+    <link href="css/AdminLTE.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="css/sb-admin.css" rel="stylesheet">
     <!-- Custom Fonts -->
@@ -82,14 +84,32 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
+					</div>
 
-					<div class="col-lg-4"> <!-- Command panel -->
+
+					<div class="col-lg-4 row"> <!-- Control panel -->
+						<div class="col-lg-12 col-xs-6 small-box bg-red">
+							<div class="inner">
+								<h3><span id=temperature>00.00</span> °C</h3>
+								<p>Température actuelle</p>
+							</div>
+						</div>
+						<div class="col-lg-12 col-xs-6 small-box bg-yellow">
+							<div class="inner">
+								<h3><span id="freq-box"><?php include('getFrequence.php'); ?></span> s</h3>
+								<p>Période d'échantillonnage</p>
+							</div>
+						</div>
+					</div>
+					
+					<div class="col-lg-4 row"> <!-- Control panel -->
 						<div class="panel panel-primary">
 							<div class="panel-heading">
 								<h2 class="panel-title"><i class="fa fa-wrench"></i> Paneau d'administration</h2>
 							</div>
 							<div class="panel-body">
+
+
                                 <div class="row">
                                     <div class="col-lg-12 text-center">
                                         <div class="panel panel-info">

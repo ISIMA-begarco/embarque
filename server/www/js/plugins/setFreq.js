@@ -6,7 +6,3 @@ function chgfreq() {
 		document.getElementById('btn_freq').href = "setFrequence.php?freq="+freq;
 	}
 }
-
-function loadFile(file) {
-     
-}
