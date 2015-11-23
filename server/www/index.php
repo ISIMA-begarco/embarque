@@ -138,11 +138,11 @@
                                     <div class="col-lg-12 text-center">
                                         <div class="panel panel-info">
                                             <div class="panel-heading">
-                                                <h2 class="panel-title">Période d'échantillonnage (sec)</h2>
+                                                <h2 class="panel-title">Période d'échantillonnage (ms)</h2>
                                             </div>
                                             <div class="panel-body">
                                                 <div class="col-sm-8">
-                                        <div id="slider" class="bfh-slider" data-name="slider_frequency" data-min="1" data-value="<?php include('getFrequence.php'); ?>" data-max="60"><?php include('getFrequence.php'); ?></div>
+                                        <div id="slider" class="bfh-slider" data-name="slider_frequency" data-min="50" data-value="<?php include('getFrequence.php'); ?>" data-max="5000"><?php include('getFrequence.php'); ?></div>
                                                 </div>
                                                 <div class="col-sm-4">
                                         <a type="button" id="btn_freq" onclick="chgfreq()" href="setFrequence.php" class="btn btn-info"><span class="glyphicon glyphicon-refresh"></span> Set</a>

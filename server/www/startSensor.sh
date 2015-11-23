@@ -1,1 +1,1 @@
-ssh begarco@192.168.1.20 "cd /var/www/garcon/embarque/ ; nohup ./testJS ; exit;"
+ssh etudiant@172.16.44.8 "cd /home/etudiant/Bureau/projet/ ; nohup ./capteur ; exit;"

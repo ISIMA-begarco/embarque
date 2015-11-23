@@ -11,7 +11,16 @@
 	if($fichier) {
 		fputs($fichier, "off");
 		fclose($fichier);
-		header('Location: .');
+
+		$fichier = fopen('commande', "w");
+		if($fichier) {
+			fputs($fichier, "Q03STOPW");
+			fclose($fichier);
+			header('Location: .');
+		} else {
+			echo "Erreur d'ouverture du fichier !";
+		}
+
 	} else {
 		echo "Erreur d'ouverture du fichier !";
 	}

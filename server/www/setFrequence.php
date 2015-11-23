@@ -11,9 +11,24 @@
 	if($fichier) {
 		fputs($fichier, $_GET['freq']);
 		fclose($fichier);
-		header('Location: .');
+		$fichier = fopen('commande', "w");
+		if($fichier) {
+			$zero='';
+			for($i = strlen($_GET['freq']) ; $i < 6 ; $i++) {
+				$zero .= '0';
+			}
+
+			fputs($fichier, "Z02".$zero.$_GET['freq']."W");
+			fclose($fichier);
+			header('Location: .');
+		} else {
+			echo "Erreur d'ouverture du fichier !";
+		}
+
 	} else {
 		echo "Erreur d'ouverture du fichier !";
 	}
+
+	
 ?>
 

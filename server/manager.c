@@ -11,8 +11,8 @@
 
 // Ou on va lire les infos
 #define TTY "/dev/ttyAMA0"
-#define FICHIER_VALEURS "valeurs.txt"
-#define FICHIER_COMMANDES "cmd.txt"
+#define FICHIER_VALEURS "./www/temperature"
+#define FICHIER_COMMANDES "./www/commande"
 
 // Structure pour les acquitements
 typedef struct bool {
@@ -70,7 +70,7 @@ int openPort(void) {
 		tcsetattr(fd, TCSANOW,&options); // set new configure immediately
 		//    tcflush(fd,TCIOFLUSH);
 		usleep(10000);
-		
+
 		printf("### Port ouvert\n");
 	}
 
@@ -100,7 +100,7 @@ printf("### Thread de lecture lance\n");
 				} // if
 			} // if read
 		} // while
-
+		printf("Trame recues : %s\n", trame);
 		/// Verification et mise en file
 		if(i == 20) { // trame de temperature
 			if(trame[19] == 'W') { // fin correcte
@@ -125,6 +125,7 @@ printf("*** Trame ajoutee dans la file (%d) \n", FILE_TRAME->size);
 					while(pthread_mutex_lock( &(BOOL_ACK->mutex) ) != 0) {usleep(1);} // On attend de bloquer le booleen
 					BOOL_ACK->b = 1; // indique qu'on a recu un ACK
 					pthread_mutex_unlock( &(BOOL_ACK->mutex) ); // Debloque le booleen
+		printf("Reception ACK\n");
 				} // if
 			} // if
 		} // if verif
@@ -151,7 +152,7 @@ printf("### Thread d'ecriture lance\n");
 		// Envoi des ACK pour les trames de temp
 		if(BOOL_SEND_ACK-> b == 1) { // Je dois envoyer un ACK
 			while( pthread_mutex_lock( &(BOOL_SEND_ACK->mutex) ) != 0) {usleep(1);}
-			
+
 			for(i = 0 ; i < strlen(ACK_STR) ; i++) {
 				write(FD, &(ACK_STR[i]),1);
 				usleep(0);
@@ -165,6 +166,7 @@ printf("*** ACK envoye\n");
 
 	    // Envoi des trames de commandes
 	    if(FILE_CMD->size > 0) { // On doit envoyer une commande
+printf("Commandes a envoyer : %d\n", FILE_CMD->size);
     	    while( pthread_mutex_lock( &(FILE_CMD->mutex) ) != 0) {usleep(1);}
     	    cmd = top_file(FILE_CMD); // Recupere la trame
 	        essai = 0;
@@ -175,29 +177,40 @@ printf("*** ACK envoye\n");
 				}
 				tcflush(FD,TCIOFLUSH);
                 essai++;
-printf("Envoi trame cmd, essai %d\n", essai);
-	            usleep(100); // Sert de timeout TODO peut etre enleve
+printf("Envoi trame %s, essai %d\n", cmd, essai);
+	           int attente = 200; // Sert de timeout TODO peut etre enleve
+			while(BOOL_ACK->b != 1 && attente != 0) {
+				usleep(1);
+				attente--;
+			}
 	        } // while ACK
+
+		if(BOOL_ACK->b == 1) {
+		    while( pthread_mutex_lock( &(BOOL_ACK->mutex) ) != 0) {usleep(1);}
+		    BOOL_ACK->b = 0;
+		    pthread_mutex_unlock(&(BOOL_ACK->mutex));
+		}
 	        pop_file(FILE_CMD); // Enleve la trame pour aller a la suivante
+printf("* Commandes restantes : %d\n", FILE_CMD->size);
 	        pthread_mutex_unlock( &(FILE_CMD->mutex) );
 	        free(cmd); // libere la trame
 	    } // if cmd > 0
-	    
+
         //Ecriture trames dans le fichier
 	    if(FILE_TRAME->size > 0) { // On a des trames
         	while( pthread_mutex_lock( &(FILE_TRAME->mutex) ) != 0) {usleep(1);}
 			trame = top_file(FILE_TRAME); // Recup la trame
-			
+
 			// Ecrit dans le fichier char par char
 			// [+/-][temp][.temp];[HHMM];[JJMMAA]\0
-			for(i = 3; i < 19; i++) {
-			    if(i == 9 || i == 13) { // separeteur
-			        fputc(';', FICHIER_T);
-			    }
+			for(i = 3; i < 9 /*19*/; i++) {
+			    //if(i == 9 || i == 13) { // separeteur
+			    //    fputc(';', FICHIER_T);
+			    //}
 			    fputc(trame[i], FICHIER_T);
 			}
             fseek(FICHIER_T, 0, SEEK_SET); // Se replace au debut pour reecrire par dessus la prochaine fois
-			
+
 			pop_file(FILE_TRAME); // Sort la trame de la file
 	    	pthread_mutex_unlock( &(FILE_TRAME->mutex) );
 printf("*** Trame %s dans le fichier et sortie\n", trame);
@@ -222,36 +235,37 @@ int threadCommande() {
 printf("### Thread de lecture des commandes lance\n");
     char clrcmd[16];
     unsigned int taille = 0;
-    char* cmd;
-    
-    strcpy(clrcmd, "> "); // Debut de la commande
-    strcat(clrcmd, FICHIER_COMMANDES); // Commande unix pour vider un fichier
-    
+    char* cmd = (char*)malloc(11 * sizeof(char));
+
+//    strcpy(clrcmd, "> "); // Debut de la commande
+//    strcat(clrcmd, FICHIER_COMMANDES); // Commande unix pour vider un fichier
+ 
 	while(BOOL_RUN == 1) {
-	    usleep(1000); // TODO on peut changer cette valeur
-	    
+	    usleep(1000); // TODO on peut changer cette v
 	    if( (fgets(cmd, 11, FICHIER_C)) != NULL ) { // On a lu un truc
 	        taille = strlen(cmd);
-	        if( (taille == 11 
+
+		printf("Taille : %d Contenu : %s\n", taille, cmd);
+	        if( (taille == 10 
 	            && cmd [0] == 'Z' 
 	            && cmd[1] == '0'
 	            && cmd[2] == '2'
 	            && cmd[9] == 'W')
-	            || (taille == 9
+	            || (taille == 8
 	            && cmd [0] == 'Q' 
 	            && cmd[1] == '0'
 	            && cmd[2] == '3'
 	            && cmd[7] == 'W') ) {
-	        	        
 			    while(pthread_mutex_lock( &(FILE_CMD->mutex) ) != 0) {usleep(1);}
 			    push_file(FILE_CMD, cmd); // Ajout de la cmd dans la file
 			    pthread_mutex_unlock( &(FILE_CMD->mutex) );
-			    
-			    system(clrcmd); // Vide le fichier
-			    fseek(FICHIER_C, 0, SEEK_SET); // Relis a partir du debut du fichier
+
+			 //   system(clrcmd);
+				fclose(FICHIER_C);
+				fopen("./www/commande", "w+");
+			   // fseek(FICHIER_C, 0, SEEK_SET); // Relis a partir du debut du fichier
 			} // if bonne trame
 	    } // if recu
-	    
 	} // while true
     
     // Liberation memoire
@@ -270,7 +284,7 @@ int main() {
 	FILE_TRAME      = create_file();
 	FILE_CMD        = create_file();
 	FICHIER_T       = fopen(FICHIER_VALEURS, "w");
-	FICHIER_C       = fopen(FICHIER_COMMANDES, "rw");
+	FICHIER_C       = fopen(FICHIER_COMMANDES, "w+");
 	BOOL_ACK        = create_bool();
 	BOOL_SEND_ACK   = create_bool();
     BOOL_RUN        = 1;
@@ -282,6 +296,8 @@ int main() {
 	    printf("!!! Fichier de valeurs introuvable\n");
 	}
 	
+//	fclose(FICHIER_C); /////////////////////////////////////////////////////////////////////////////////
+
 	if(FICHIER_C != NULL) {
 	    printf("### Fichier de commandes ouvert\n");
 	} else {
@@ -297,22 +313,7 @@ int main() {
 	pthread_create(&commande, NULL, threadCommande, NULL);
 	
 	while(BOOL_RUN == 1) {
-	    if(FILE_TRAME->size == 0) {
-	        idle++;
-	        sleep(1);
-	    } else {
-	        idle = 0;
-	    }
-	    
-	    if(idle > 1) { // TODO intervalle max entre 2 trames
-	        BOOL_RUN = 0;
-	        
-        	printf("\n!!! Arret du programme \n");
-        	pthread_join(lecture, NULL);
-        	pthread_join(ecriture, NULL);
-        	pthread_join(commande, NULL);
-        	
-	    }
+		usleep(1);
 	}
 	
 	// Liberation memoire

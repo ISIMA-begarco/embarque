@@ -47,6 +47,7 @@ bool_t * BOOL_ACK_RECEPTION;
 bool_t * BOOL_ACK_ENVOI;
 bool_t * BOOL_RUN;
 int FREQ;
+float prevTemp = 0;
 char ACK_STR[] = "Y00ACKW";
 
 // Ouverture du port pour communication RS232
@@ -102,10 +103,10 @@ void *threadEnvoi(void * param) {
 				usleep(0);
 			}
 			tcflush(fd,TCIOFLUSH);
-	        printf("\tEnvoi fini\n");
+	        printf("\tEnvoi ACK ok\n");
 			BOOL_ACK_ENVOI->b = 0;
 			pthread_mutex_unlock(&(BOOL_ACK_ENVOI->mutex));
-  		} else { // envoi des temperatures
+  		} else if(BOOL_ACK_ENVOI->b != 1){ // envoi des temperatures
 			msgEnvoye=0, nbEssais=3;
 			while(!msgEnvoye && nbEssais) {
 				while(pthread_mutex_lock(&(GL_trames->mutex))) {	// on attend l'acces a la zone partagee
@@ -123,8 +124,8 @@ void *threadEnvoi(void * param) {
 					free(trame);
 
                     // attente de l'ack
-                    int attente = 100;
-                    while(BOOL_ACK_RECEPTION->b == 0 && attente != 0) {
+                    int attente = 200;
+                    while(BOOL_ACK_RECEPTION->b == 0 && BOOL_ACK_ENVOI->b != 1 && attente != 0) {
                         usleep(1);
                         attente--;
                     }
@@ -138,8 +139,9 @@ void *threadEnvoi(void * param) {
                         }
                         BOOL_ACK_RECEPTION->b = 0;
                         pthread_mutex_unlock(&(BOOL_ACK_RECEPTION->mutex));
+                        printf("Succes : Acquittement recu.\n");
                     }
-                    if(!nbEssais) {
+                    if(!nbEssais || BOOL_ACK_ENVOI->b) {
                     	printf("Abandon : aucun acquittement.\n");
                         pop_file(GL_trames);
                     }
@@ -159,8 +161,6 @@ void *threadReception(void * param) {
 	char* trame = (char*)malloc(21 * sizeof(char));
 
 	while(BOOL_RUN->b == 1) { // TODO modifier dans le prog pour stopper
-		//usleep(100); // Pour la synchro
-		// TODO attendre son tour pour aller lire
 
 		// Lecture trame
 		ok = 0;
@@ -168,20 +168,30 @@ void *threadReception(void * param) {
 		c = 0;
 		while(i < 20 && c!='W') { // la taille max est de 20
 			if(read(fd, &c, 1) >= 1) { // Lecture du caractere
-				if(ok==1 || c=='X' || c=='Y') { // debut trame TEMP ou ACK
+				if(ok==1 || c=='Q' || c=='Y' || c=='Z') { // debut trame TEMP ou ACK
 					ok = 1;
 					trame[i] = c;
 					i++;
 				} // if
 			} // if read
 		} // while
-
+		
+		printf("Lu : %s\n", trame);
+		
 		/// Verification et mise en file
-		if(i == 20) { // trame de temperature
-			if(trame[19] == 'W') { // fin correcte
-				if(trame[0]=='X' && trame[1]=='0' && trame[2]=='1') { // bon code, donc bonne trame
+		if (i == 7) { // trame acquitement
+			if(trame[6] == 'W') { // fin correcte
+				if(trame[0] == 'Y' && trame[1] == '0' && trame[2] == '0') { // bon code de trame
+					while(pthread_mutex_lock( &(BOOL_ACK_RECEPTION->mutex) ) != 0) {usleep(1);} // On attend de bloquer le booleen
+					BOOL_ACK_RECEPTION->b = 1; // indique qu'on a recu un ACK
+					pthread_mutex_unlock( &(BOOL_ACK_RECEPTION->mutex) ); // Debloque le booleen
+				} // if
+			} // if
+		} else if(i == 8) { // trame de stop
+			if(trame[7] == 'W') { // fin correcte
+				if(trame[0]=='Q' && trame[1]=='0' && trame[2]=='3') { // bon code, donc bonne trame
 printf("Trame recue : %s\n", trame); // affichage de test
-					trame[20] = '\0'; // Ajout du caractere de fin
+					trame[8] = '\0'; // Ajout du caractere de fin
 					while(pthread_mutex_lock( &(GL_recues->mutex) ) != 0) {usleep(1);} // On a attend de bloquer la file
 					push_file(GL_recues, trame); // Ajout de la trame dans la file
 					pthread_mutex_unlock( &(GL_recues->mutex) ); // Debloque la file
@@ -194,15 +204,24 @@ printf("*** Trame ajoutee dans la file (%d) \n", GL_recues->size);
 
 				} // if code
 			} // if fin
-		} else if (i == 7) { // trame acquitement
-			if(trame[6] == 'W') { // fin correcte
-				if(trame[0] == 'Y' && trame[1] == '0' && trame[2] == '0') { // bon code de trame
-					while(pthread_mutex_lock( &(BOOL_ACK_RECEPTION->mutex) ) != 0) {usleep(1);} // On attend de bloquer le booleen
-					BOOL_ACK_RECEPTION->b = 1; // indique qu'on a recu un ACK
-					pthread_mutex_unlock( &(BOOL_ACK_RECEPTION->mutex) ); // Debloque le booleen
-				} // if
-			} // if
-		} // if verif
+		} else if(i == 10) { // trame de frequence
+			if(trame[9] == 'W') { // fin correcte
+				if(trame[0]=='Z' && trame[1]=='0' && trame[2]=='2') { // bon code, donc bonne trame
+printf("Trame recue : %s\n", trame); // affichage de test
+					trame[10] = '\0'; // Ajout du caractere de fin
+					while(pthread_mutex_lock( &(GL_recues->mutex) ) != 0) {usleep(1);} // On a attend de bloquer la file
+					push_file(GL_recues, trame); // Ajout de la trame dans la file
+
+					// Dit qu'il faut envoyer un ACK
+					while( pthread_mutex_lock( &(BOOL_ACK_ENVOI->mutex) ) != 0 ) {usleep(1);}
+					BOOL_ACK_ENVOI->b = 1;
+					pthread_mutex_unlock( &(BOOL_ACK_ENVOI->mutex) );
+
+					pthread_mutex_unlock( &(GL_recues->mutex) ); // Debloque la file
+printf("*** Trame ajoutee dans la file (%d) \n", GL_recues->size);
+				} // if code
+			} // if fin
+		} // elseif
 	} // while(1)
 	
 	// Desallocation de memoire
@@ -213,7 +232,9 @@ printf("*** Trame ajoutee dans la file (%d) \n", GL_recues->size);
 
 // renvoie une temperature pour la trame a envoyer
 float genereTemperature(int min, int max) {
-	return (float)((rand()/(float)RAND_MAX) * (max-min) + min);
+	prevTemp = prevTemp + (rand()/(float)RAND_MAX) * 5 - 2.5;
+	prevTemp = (prevTemp > 40) ? 40 : (prevTemp<-20) ? -20 : prevTemp;
+	return prevTemp;
 }
 
 // Creation des trames de température
@@ -244,7 +265,10 @@ void* threadThermometre(void * param) {
 		free(trame);
 		
         pthread_mutex_unlock(&(GL_trames->mutex));
-		sleep(FREQ);
+		
+		//sleep(1);
+		printf("Periode : %d ms\n", FREQ);
+		usleep(FREQ*1000);
 	}
 
 	return 0;
@@ -265,7 +289,7 @@ int main(int argc, char* argv[]) {
 	BOOL_ACK_ENVOI = (bool_t*)malloc(sizeof(bool_t));
 	BOOL_ACK_ENVOI->b = 0;
 	pthread_mutex_init(&(BOOL_ACK_ENVOI->mutex), NULL);
-	FREQ = 1;
+	FREQ = 50;
 	pthread_mutex_init(&(BOOL_RUN->mutex), NULL);
 
     // threads

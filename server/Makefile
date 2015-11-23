@@ -15,7 +15,7 @@ EXEC = prog
 ############################## OPTIONS ##############################
 
 #Options de compilation
-CXXFLAGS = -Wall -W -Wextra -g
+CXXFLAGS = -Wall -W -Wextra -g -O2
 #Options pour les librairies
 LDFLAGS = -lpthread
 
