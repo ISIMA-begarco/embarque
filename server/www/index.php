@@ -49,6 +49,7 @@
                 <ul class="nav navbar-nav side-nav">
                     <li class="active">
                         <a href="index.php"><i class="fa fa-fw fa-bar-chart-o"></i> Accueil</a>
+                        <a href="history.php"><i class="fa fa-fw fa-table"></i> Historique</a>
                     </li>
                 </ul>
             </div>
@@ -88,21 +89,42 @@
 
 
 					<div class="col-lg-4 row"> <!-- Control panel -->
-						<div class="col-lg-12 col-xs-6 small-box bg-red">
+						<div class="col-lg-12 col-sm-6 col-xs-12 small-box bg-yellow">
 							<div class="inner">
 								<h3><span id=temperature>00.00</span> °C</h3>
 								<p>Température actuelle</p>
 							</div>
 						</div>
-						<div class="col-lg-12 col-xs-6 small-box bg-yellow">
+						<div class="col-lg-12 col-sm-6 col-xs-12 small-box bg-purple">
 							<div class="inner">
-								<h3><span id="freq-box"><?php include('getFrequence.php'); ?></span> s</h3>
+								<h3><span id="temp-moy"><?php include('moyenne.php'); ?></span> °C</h3>
+								<p>Moyenne</p>
+							</div>
+						</div>
+						<div class="col-lg-6 col-xs-6 small-box bg-blue">
+							<div class="inner">
+								<h3><span id="temp-min"><?php include('min.php'); ?></span> °C</h3>
+								<p>Min</p>
+							</div>
+						</div>
+						<div class="col-lg-6 col-xs-6 small-box bg-red">
+							<div class="inner">
+								<h3><span id="temp-max"><?php include('max.php'); ?></span> °C</h3>
+								<p>Max</p>
+							</div>
+						</div>
+						<div class="col-lg-12 col-xs-12 small-box bg-yellow">
+							<div class="inner">
+								<h3><span id="freq-box"><?php include('getFrequence.php'); ?></span> ms</h3>
 								<p>Période d'échantillonnage</p>
 							</div>
 						</div>
 					</div>
-					
-					<div class="col-lg-4 row"> <!-- Control panel -->
+				</div>
+				
+				<div class="row">
+
+					<div class="col-lg-12"> <!-- Control panel -->
 						<div class="panel panel-primary">
 							<div class="panel-heading">
 								<h2 class="panel-title"><i class="fa fa-wrench"></i> Paneau d'administration</h2>
@@ -118,17 +140,12 @@
                                             </div>
                                             <div class="panel-body">
                                                 <div class="col-sm-6">
-                                        <button type="button" class="btn <?php if($_SERVER['sensor_state'][1]=='n'){echo 'btn-success';} else { echo 'btn-danger';} ?>"><span class="glyphicon glyphicon-off"></span><?php if($_SERVER['sensor_state'][1]=="n") {echo "\tEn marche";} else {echo "\tEteint";} ?></button>
+                                        <a type="button" class="btn btn-danger" href="stopSensor.php"><span class="glyphicon glyphicon-off"></span> Eteindre</a>
                                                 </div>
-                          <?php if($_SERVER['sensor_state'][1]!='n') { ?>
-                                            <div class="col-sm-6">
-                                        <a type="button" href="startSensor.php" class="btn btn-success">Démarrer</a>
-                                                </div>
-                          <?php } else { ?>
+
                                                 <div class="col-sm-6">
-                                        <a type="button" href="stopSensor.php" class="btn btn-danger">Arrêter</a>
+                                        <a type="button" class="btn btn-primary" href="resetHistory.php"><span class="glyphicon glyphicon-refresh"></span> Reset historique</a>
                                                 </div>
-                          <?php } ?>
                                             </div>
                                         </div>
                                     </div>

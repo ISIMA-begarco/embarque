@@ -26,7 +26,14 @@ $(function() {
             y = Number(y);
             data.push(y < -20 ? -20 : y > 40 ? 40 : y);
         }
+		
+		// ajout des informations de suivi /////////////////////
+		loadMax("max.php");
+		loadMoy("moyenne.php");
+		loadMin("min.php");
 
+		////////////////////////////////////////////////////////
+		
         // zip the generated y values with the x values
 
         var res = [];
@@ -107,7 +114,46 @@ function loadTemperature(file) {
 		xhr.open('GET', file);
 		xhr.addEventListener('readystatechange', function() {             
 		if (xhr.readyState === 4 && (xhr.status === 200 || xhr.status === 0)) {
-			document.getElementById('temperature').innerHTML = xhr.responseText;
+			document.getElementById('temperature').innerHTML = (xhr.responseText.length >= 5) ? xhr.responseText : "00.00";
+		}
+    }, false);
+   	xhr.send(null);
+}
+
+/* recuperation de la temperature moyenne */
+
+function loadMoy(file) {
+	var xhr = new XMLHttpRequest();
+		xhr.open('GET', file);
+		xhr.addEventListener('readystatechange', function() {             
+		if (xhr.readyState === 4 && (xhr.status === 200 || xhr.status === 0)) {
+			document.getElementById('temp-moy').innerHTML = (xhr.responseText.length >= 5) ? xhr.responseText : "00.00";
+		}
+    }, false);
+   	xhr.send(null);
+}
+
+/* recuperation de la temperature min */
+
+function loadMin(file) {
+	var xhr = new XMLHttpRequest();
+		xhr.open('GET', file);
+		xhr.addEventListener('readystatechange', function() {             
+		if (xhr.readyState === 4 && (xhr.status === 200 || xhr.status === 0)) {
+			document.getElementById('temp-min').innerHTML = xhr.responseText;
+		}
+    }, false);
+   	xhr.send(null);
+}
+
+/* recuperation de la temperature max */
+
+function loadMax(file) {
+	var xhr = new XMLHttpRequest();
+		xhr.open('GET', file);
+		xhr.addEventListener('readystatechange', function() {             
+		if (xhr.readyState === 4 && (xhr.status === 200 || xhr.status === 0)) {
+			document.getElementById('temp-max').innerHTML = xhr.responseText;
 		}
     }, false);
    	xhr.send(null);

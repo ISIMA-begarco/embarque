@@ -7,17 +7,10 @@
 				error_reporting(E_ALL);
 					/* end erreur */
 
-	$fichier = fopen('sensorState', "w");
+	$fichier = fopen('history', "w");
 	if($fichier) {
-		fputs($fichier, "on");
+		fputs($fichier, "");
 		fclose($fichier);
-/*
-		$connection = ssh2_connect('192.168.1.20', 22);
-		$auth = @ssh2_auth_password($connection, 'username', 'password');
-		$stream = ssh2_exec($connection, 'cd /var/www/garcon/embarque; nohup ./testJS &;');
-		unset($connection);
-*/
-		system("./startSensor.sh");
 		header('Location: .');
 	} else {
 		echo "Erreur d'ouverture du fichier !";
